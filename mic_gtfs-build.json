@@ -1,0 +1,9 @@
+{
+  "version": "1.3.0",
+  "source_commit": "c8334ab33f5f9cdcd84feef9009e46112f1f2974",
+  "sha256": "3d997488b8855b7a15d7b1a1da9faa54a7417c3f3a3ce53c284619a1a80344b0",
+  "plugin_folder": "mic_gtfs",
+  "experimental": true,
+  "qgis_runtime_tested": false,
+  "published_utc": "2026-11-12T15:39:44.595568+00:00"
+}
