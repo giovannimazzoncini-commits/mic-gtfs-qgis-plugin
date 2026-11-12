@@ -1,0 +1,24 @@
+QWidget#MICBody {background:#f4f7f8;color:#20323a;font-family:"Segoe UI",sans-serif;font-size:12px;}
+#MICBody QLabel {color:#20323a;background:transparent;}
+#MICBody QLabel[kind="muted"] {color:#697c86;font-size:11px;}
+#MICBody QLabel[kind="section"] {color:#697c86;font-size:10px;font-weight:600;letter-spacing:1px;}
+#MICBody QLabel#brand {font-size:22px;font-weight:700;color:#125766;}
+#MICBody QFrame[card="true"] {background:#ffffff;border:1px solid #dce5e8;border-radius:10px;}
+#MICBody QFrame[card="true"] QLabel {border:0;}
+#MICBody QPushButton {background:#ffffff;color:#304750;border:1px solid #d2dde1;border-radius:7px;padding:8px 10px;min-height:17px;}
+#MICBody QPushButton:hover {background:#eaf2f4;border-color:#85abb4;}
+#MICBody QPushButton:checked {background:#dceef0;color:#125766;border:1px solid #4e909d;font-weight:600;}
+#MICBody QPushButton[primary="true"] {background:#155f6e;color:#ffffff;border:1px solid #155f6e;font-weight:600;padding:11px;}
+#MICBody QPushButton[primary="true"]:hover {background:#0d4c59;}
+#MICBody QPushButton:disabled {color:#99a7ac;background:#edf1f2;border-color:#e1e8ea;}
+#MICBody QLineEdit,#MICBody QComboBox,#MICBody QSpinBox,#MICBody QDateEdit {color:#20323a;background:#ffffff;border:1px solid #d6e1e5;border-radius:6px;padding:6px;min-height:20px;selection-background-color:#155f6e;selection-color:white;}
+#MICBody QComboBox:disabled,#MICBody QSpinBox:disabled {color:#9aa7ad;background:#edf1f2;}
+#MICBody QTabWidget::pane {border:0;}
+#MICBody QTabBar::tab {background:transparent;color:#74868e;padding:10px 18px;border-bottom:2px solid transparent;}
+#MICBody QTabBar::tab:selected {color:#155f6e;border-bottom:2px solid #155f6e;font-weight:600;}
+#MICBody QScrollArea {border:0;background:transparent;}
+#MICBody QTreeWidget {background:#f4f7f8;border:0;color:#20323a;outline:0;}
+#MICBody QTreeWidget::item {padding:3px;border-radius:5px;}
+#MICBody QTreeWidget::item:selected {background:#dceef0;color:#125766;}
+#MICBody QCheckBox {color:#425c66;spacing:7px;padding:3px;}
+#MICBody QToolButton {border:0;background:transparent;color:#155f6e;padding:6px 0;font-weight:600;}
