@@ -1,0 +1,99 @@
+name: Publish experimental QGIS update
+on:
+  push:
+    branches: [sviluppo-occupazione-fermate]
+    paths: ['mic_gtfs/**', '.github/workflows/publish-qgis.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-qgis-main
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/sviluppo-occupazione-fermate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: release
+      - name: Validate, package and update index
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        shell: python
+        run: |
+          import ast, configparser, datetime, hashlib, json, os, pathlib, re, subprocess, sys, zipfile
+          import xml.etree.ElementTree as ET
+          source = pathlib.Path('source/mic_gtfs')
+          release = pathlib.Path('release')
+          metadata = configparser.ConfigParser()
+          metadata.read(source / 'metadata.txt', encoding='utf-8-sig')
+          version = metadata['general']['version']
+          def number(value):
+              if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', value):
+                  raise ValueError('Expected numeric major.minor.patch: ' + value)
+              return tuple(map(int, value.split('.')))
+          tree = ET.parse(release / 'plugins.xml')
+          plugins = [p for p in tree.getroot().findall('pyqgis_plugin') if p.get('name') == 'MIC_GTFS']
+          assert len(plugins) == 1, 'Ambiguous plugin entry'
+          plugin = plugins[0]
+          current = plugin.findtext('version') or plugin.get('version')
+          if number(version) <= number(current):
+              print('No newer source version; published package unchanged: ' + current)
+              sys.exit(0)
+          for name in ['__init__.py', 'engine.py', 'metadata.txt', 'style.qss', 'icon.svg', 'README.txt']:
+              assert (source / name).is_file(), 'Missing source: ' + name
+          for path in source.rglob('*.py'):
+              ast.parse(path.read_text(encoding='utf-8-sig'), filename=str(path))
+          test = source / 'tests/test_conflicts.py'
+          if test.is_file():
+              subprocess.run([sys.executable, str(test)], check=True)
+          with zipfile.ZipFile(release / 'mic_gtfs.zip') as old:
+              roots = [pathlib.PurePosixPath(n).parent for n in old.namelist() if pathlib.PurePosixPath(n).name == 'metadata.txt' and '__MACOSX' not in n]
+              assert len(roots) == 1 and len(roots[0].parts) == 1, 'Cannot preserve installed plugin folder'
+              root = roots[0]
+          files = sorted(p for p in source.rglob('*') if p.is_file() and not any(x in ['__pycache__', '.git', '.pytest_cache'] for x in p.relative_to(source).parts) and p.suffix not in ['.pyc', '.pyo'])
+          package = release / 'mic_gtfs.zip'
+          with zipfile.ZipFile(package, 'w', zipfile.ZIP_DEFLATED) as archive:
+              for path in files:
+                  archive.write(path, str(root / pathlib.PurePosixPath(path.relative_to(source).as_posix())))
+          with zipfile.ZipFile(package) as archive:
+              assert archive.testzip() is None, 'ZIP validation failed'
+              check = configparser.ConfigParser()
+              check.read_string(archive.read(str(root / 'metadata.txt')).decode('utf-8-sig'))
+              assert check['general']['version'] == version
+          plugin.set('version', version)
+          values = {'version': version, 'file_name': 'mic_gtfs.zip', 'experimental': 'True', 'download_url': 'https://raw.githubusercontent.com/giovannimazzoncini-commits/mic-gtfs-qgis-plugin/main/mic_gtfs.zip'}
+          for key, field in [('description','description'),('about','about'),('qgis_minimum_version','qgisMinimumVersion'),('qgis_maximum_version','qgisMaximumVersion')]:
+              value = metadata['general'].get(field)
+              if value:
+                  values[key] = value
+          for key, value in values.items():
+              element = plugin.find(key)
+              if element is None:
+                  element = ET.SubElement(plugin, key)
+              element.text = value
+          ET.indent(tree, space='  ')
+          tree.write(release / 'plugins.xml', encoding='utf-8', xml_declaration=True)
+          manifest = {'version': version, 'source_commit': os.environ['SOURCE_SHA'], 'sha256': hashlib.sha256(package.read_bytes()).hexdigest(), 'plugin_folder': str(root), 'experimental': True, 'qgis_runtime_tested': False, 'published_utc': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          (release / 'mic_gtfs-build.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+          print('Prepared experimental update ' + version + '; QGIS runtime not tested.')
+      - name: Publish ZIP and index in one commit
+        working-directory: release
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- mic_gtfs.zip plugins.xml
+          if [ -f mic_gtfs-build.json ]; then git add -- mic_gtfs-build.json; fi
+          if git diff --cached --quiet; then
+            echo 'Nothing to publish.'
+          else
+            git commit -m 'Publish experimental MIC_GTFS QGIS update'
+            git push origin HEAD:main
+          fi
