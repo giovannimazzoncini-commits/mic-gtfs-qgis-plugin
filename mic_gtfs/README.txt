@@ -80,3 +80,62 @@ CSV in RAM, ricerca esaustiva lenta con feed grandi, molti layer per collegament
 Thread principale con annullamento periodico, non task background. Non chiudere
 progetto o disinstallare plugin durante calcolo. Provare prima una singola data
 con pochi risultati e verificare esportazione e riapertura su una piccola analisi.
+
+
+BUILD SPERIMENTALE 1.3.0 — CONFLITTI FERMATA
+Base: sorgenti 1.2.0 forniti il 12 novembre 2026. Nessuna cartografia offset.
+Motore engine.py originale invariato. Raggiungibilita Da/Verso/Entrambe preservata.
+Aggiunti conflicts.py, gtfs_adapter.py, occupancy_controller.py, occupancy_ui.py,
+occupancy_results.py, tests/test_conflicts.py. Modifiche __init__: creazione
+scheda, invalidazione su feed/progetto, annullamento in unload e lettura agency.txt.
+
+USO
+1. Installa ZIP in QGIS e riavvia. Build sperimentale: testare in profilo di prova.
+2. Importa di nuovo il GTFS per caricare agency_timezone. Non occorrono shapes
+   per i conflitti e non occorre un calcolo di raggiungibilita.
+3. Seleziona fermate nel layer feed; apri Conflitti fermata e acquisisci selezione.
+4. Verifica fuso GTFS: se assente specificarlo esplicitamente (es. Europe/Rome).
+5. Data civile e fascia locale; fine <= inizio indica il giorno seguente,
+   00:00-00:00 indica una giornata intera. Le corse di servizio del giorno
+   precedente con orari >24:00 o occupazioni residue sono incluse.
+6. Fermate separate per default; raggruppare solo quelle con stalli condivisi.
+7. Stalli 0 = NON NOTO, non capacita nulla. Capacita e durate uniformi per le
+   aree dell'esecuzione; per configurazioni diverse eseguire analisi separate.
+8. Valori 45 s sosta e 10 s liberazione sono ESEMPI, non norme o valori calibrati.
+9. Usa arrivo-partenza positivo quando selezionato; altrimenti durata assunta.
+   Partenza incoerente esclusa, arrivo mancante escluso e segnalato.
+10. Calcola (QgsTask), verifica tabelle e diagnostica; Mostra sulla mappa
+    produce un gruppo indipendente. Le tabelle UI mostrano al massimo 20.000
+    righe: export CSV/GPKG include tutte le righe e JSON configurazione.
+
+MODELLO
+Intervalli [inizio,fine), uscite prima ingressi allo stesso istante.
+Sovrapposizione N>=2, superamento N>stalli, picco domanda non progetto definitivo.
+Il minimo teorico e valido soltanto nel modello di stalli indipendenti.
+Non simula attesa, manovre, blocchi reciproci o code. Conta visite GTFS, non
+veicoli fisici riconciliati: block_id/continuita veicolo non gestiti.
+Ogni visita distinta per data servizio+trip_id+stop_sequence+stop_id.
+Occupazioni precedenti la fascia incluse; passaggi conta solo arrivi nella fascia.
+Fasce da 15/30/60 min iniziano all'inizio analisi, non necessariamente ora intera.
+Fuso IANA con zoneinfo Python 3.9+: se la banca dati dei fusi manca nel Python
+QGIS il modulo restituisce errore esplicito; nessuna installazione pip automatica.
+Limiti ambigui/inesistenti nei cambi ora legale sono rifiutati.
+Orari GTFS calcolati da mezzogiorno locale meno 12 ore secondo convenzione GTFS.
+Assenza di calendario blocca avvio. frequencies.txt non vuoto NON supportato,
+calcolo bloccato, anche per exact_times=1 in questa prima build.
+Orari approssimati non trasformati in osservati. Nessun fallback realtime.
+Real-time e storico disabilitati, NON implementati.
+La diagnostica degli arrivi mancanti riferisce i record del giorno di servizio
+selezionato: senza orario non puo attribuirli con certezza alla fascia civile.
+Mancanza di errori non prova completezza del feed.
+Configurazioni non persistono ancora automaticamente al riavvio del plugin.
+Snapshot risultati invalidato al cambio feed/progetto. Parametri cambiati
+richiedono nuovo calcolo prima export/mappa. Esportazione non atomica: errore
+puo lasciare file parziale; originali non modificati. Non sovrascrive GPKG.
+
+VERIFICHE
+23 test Python puri PASS. Sintassi di tutti i moduli e integrita ZIP verificate.
+Test puri avviabili con: python mic_gtfs/tests/test_conflicts.py
+NON eseguito QGIS/Qt, QgsTask, map rendering, writer GeoPackage o installazione.
+Il file TEST_REPORT.txt documenta il risultato. Collaudare nel QGIS reale.
+Non pubblicato su GitHub: nessun ramo o indice remoto modificato in questa fase.

@@ -13,11 +13,13 @@ class Plugin:
  def initGui(self):
   self.action=QAction(QIcon(os.path.join(os.path.dirname(__file__),'icon.svg')),'MIC_GTFS',self.iface.mainWindow());self.action.setCheckable(True);self.action.toggled.connect(self.toggle);self.iface.addPluginToMenu('MIC_GTFS',self.action);self.iface.addToolBarIcon(self.action);QgsProject.instance().cleared.connect(self.reset_state)
  def unload(self):
+  if hasattr(self,'conflicts_panel'):self.conflicts_panel.dispose()
   try:QgsProject.instance().cleared.disconnect(self.reset_state)
   except (TypeError,RuntimeError):pass
   self.iface.removePluginMenu('MIC_GTFS',self.action);self.iface.removeToolBarIcon(self.action)
   if hasattr(self,'dock'):self.iface.removeDockWidget(self.dock);self.dock.deleteLater()
  def reset_state(self):
+  if hasattr(self,'conflicts_panel'):self.conflicts_panel.invalidate_feed()
   self.display=[];self.detail_layers=[];self.network=None;self.groups={};self.solutions={};self.stopid=None
   if hasattr(self,'tree'):self.tree.clear();self.metrics.setText('Nessuna analisi disponibile');self.status.setText('Progetto chiuso · reimporta il feed');self.selection_changed()
  def stoplayer(self):
@@ -78,6 +80,8 @@ class Plugin:
   self.only=QCheckBox('Mostra solo questo itinerario');self.only.setChecked(True);c.addWidget(self.only);self.button(c,'Mostra sulla mappa',self.itinerary,True);self.button(c,'Ripristina rete',self.restore)
   self.details=self.label('Seleziona una fermata per un viaggio con data e orari.','muted');c.addWidget(self.details)
   self.scope=QComboBox();self.scope.addItems(['Tutta l’ultima analisi','Collegamento selezionato','Itinerario visualizzato']);rv.addWidget(self.scope);self.button(rv,'Salva risultati…',self.export_selected)
+  from .occupancy_ui import ConflictsPanel
+  self.conflicts_panel=ConflictsPanel(self);self.tabs.addTab(self.conflicts_panel,'Conflitti fermata')
   self.status=self.label('Pronto · dati elaborati localmente','muted');outer.addWidget(self.status)
   self.mode.currentIndexChanged.connect(self.update);self.date.dateChanged.connect(self.update);self.period.currentIndexChanged.connect(self.update);self.update()
   self.dock.setWidget(body);self.iface.addDockWidget(Qt.RightDockWidgetArea,self.dock);self.dock.resize(430,850)
@@ -110,7 +114,7 @@ class Plugin:
   data={}
   with zipfile.ZipFile(path) as z:
    mapping={n.rsplit('/',1)[-1].lower():n for n in z.namelist() if not n.endswith('/')}
-   for table in ['stops','trips','routes','stop_times','shapes','calendar','calendar_dates','transfers','frequencies']:
+   for table in ['agency','stops','trips','routes','stop_times','shapes','calendar','calendar_dates','transfers','frequencies']:
     if table+'.txt' not in mapping:continue
     rows=[]
     for n,r in enumerate(csv.DictReader(io.TextIOWrapper(z.open(mapping[table+'.txt']),encoding='utf-8-sig',newline=''))):
@@ -118,6 +122,7 @@ class Plugin:
      if n%25000==0:self.tick()
     data[table]=rows
   if not all(data.get(t) for t in ['stops','trips','stop_times']):raise ValueError('Mancano stops/trips/stop_times.')
+  if hasattr(self,'conflicts_panel'):self.conflicts_panel.invalidate_feed()
   self.restore();self.data=data;self.feedpath=path;self.stops={r['stop_id']:r for r in data['stops']};self.trips={r['trip_id']:r for r in data['trips']};self.routes={r['route_id']:r for r in data.get('routes',[])};self.seq=collections.defaultdict(list);self.shapes=collections.defaultdict(list)
   for r in data['stop_times']:self.seq[r['trip_id']].append(r)
   for s in self.seq.values():s.sort(key=lambda r:int(r['stop_sequence']))
