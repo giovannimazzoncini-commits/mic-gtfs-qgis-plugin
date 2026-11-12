@@ -1,0 +1,62 @@
+name: Import verified MIC_GTFS 1.2.0 sources
+on:
+  push:
+    branches: [sviluppo-occupazione-fermate]
+    paths: [.github/workflows/import-base-1.2.0.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: import-base-120
+  cancel-in-progress: false
+jobs:
+  import:
+    if: github.ref == 'refs/heads/sviluppo-occupazione-fermate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sviluppo-occupazione-fermate
+      - name: Validate archive and import sources
+        shell: python
+        run: |
+          import ast, configparser, hashlib, pathlib, zipfile
+          expected = {
+              '__init__.py': '64297701af2296845a324ff7e38f3ab4b6be06e8ce99ec9badcae007b26910cc',
+              'engine.py': '00dae27bde5d561c785f1bf9b7d00b01eab02bcf66e985e0e4a55574b1ddf5b4',
+              'style.qss': 'df22ed72b0d56b3c8419b5936f38f463c9e12a0b2f9e9f1f7b797f166ec63589',
+              'README.txt': 'b708c3f96d799e01a8cbe1305cafca05974044fe653ffa6beec15721c58d0ee5',
+              'metadata.txt': '40dcf9e0f51666e7ad31a069dece3713f447304ddbd6c351a9601e9babcbbeed',
+          }
+          with zipfile.ZipFile('mic_gtfs.zip') as archive:
+              assert archive.testzip() is None, 'Invalid ZIP'
+              candidates = [n for n in archive.namelist() if pathlib.PurePosixPath(n).name == '__init__.py' and '__MACOSX' not in n]
+              assert len(candidates) == 1, 'Ambiguous plugin root'
+              parent = pathlib.PurePosixPath(candidates[0]).parent
+              payload = {name: archive.read(str(parent / name)) for name in [*expected, 'icon.svg']}
+          for name, digest in expected.items():
+              text = payload[name].decode('utf-8-sig').replace('\r\n', '\n').strip() + '\n'
+              assert hashlib.sha256(text.encode('utf-8')).hexdigest() == digest, 'Uploaded source mismatch: ' + name
+              if name.endswith('.py'):
+                  ast.parse(text, filename=name)
+          metadata = configparser.ConfigParser()
+          metadata.read_string(payload['metadata.txt'].decode('utf-8-sig'))
+          assert metadata['general']['version'] == '1.2.0', 'Wrong version'
+          import xml.etree.ElementTree as ET
+          ET.fromstring(payload['icon.svg'])
+          destination = pathlib.Path('mic_gtfs')
+          destination.mkdir(exist_ok=True)
+          for name, data in payload.items():
+              (destination / name).write_bytes(data)
+          print('Verified and imported six files for version 1.2.0; QGIS runtime not tested.')
+      - name: Commit sources on development branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- mic_gtfs/__init__.py mic_gtfs/engine.py mic_gtfs/style.qss mic_gtfs/README.txt mic_gtfs/metadata.txt mic_gtfs/icon.svg
+          if git diff --cached --quiet; then
+            echo 'Sources already imported; no changes.'
+          else
+            git commit -m 'Import verified MIC_GTFS 1.2.0 source baseline'
+            git push origin HEAD:sviluppo-occupazione-fermate
+          fi
